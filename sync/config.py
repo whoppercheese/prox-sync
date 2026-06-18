@@ -31,9 +31,12 @@ class Settings(BaseSettings):
 
     PIHOLE_URL: str = Field(
         default="",
-        description="Pi-hole API URL (required if DNS_MODE=managed)",
+        description="Pi-hole base URL without /admin suffix (required if DNS_MODE=managed)",
     )
-    PIHOLE_PASSWORD: str = Field(default="", description="Pi-hole web password or app password")
+    PIHOLE_PASSWORD: str = Field(
+        default="",
+        description="Pi-hole web password or app password (required if DNS_MODE=managed)",
+    )
 
     ENABLE_SSL: bool = Field(
         default=False,

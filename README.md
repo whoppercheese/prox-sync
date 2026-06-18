@@ -115,8 +115,8 @@ Fill in your values:
 | `NPM_IP` | NPM host IP for DNS records |
 | `NPM_USER` | NPM login email |
 | `NPM_PASSWORD` | NPM login password |
-| `PIHOLE_URL` | Pi-hole URL (only needed if `DNS_MODE=managed`) |
-| `PIHOLE_PASSWORD` | Pi-hole password (only needed if `DNS_MODE=managed`) |
+| `PIHOLE_URL` | Pi-hole base URL (e.g. `http://192.168.178.10` or `https://pi.hole`) |
+| `PIHOLE_PASSWORD` | Web password or app password (see Pi-hole setup below) |
 | `ENABLE_SSL` | `true` to auto-provision Let's Encrypt |
 | `DRY_RUN` | `true` to preview without applying |
 | `LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
@@ -132,6 +132,26 @@ systemctl start proxmox-sync.timer
 ```
 
 Done. From now on, tag your LXC containers in Proxmox and everything else happens automatically.
+
+### Pi-hole setup (`DNS_MODE=managed`)
+
+1. Set a **web interface password** in Pi-hole (Settings > Web interface). App passwords only work if a web password exists.
+2. Generate an **app password** in Settings > API > App password (recommended for scripts).
+3. Enable write access for app-password sessions:
+
+```bash
+sudo pihole-FTL --config webserver.api.app_sudo true
+```
+
+4. Test authentication from the sync LXC:
+
+```bash
+curl -s -X POST "http://YOUR_PIHOLE/api/auth" \
+  -H "Content-Type: application/json" \
+  -d '{"password":"YOUR_APP_PASSWORD"}' | jq
+```
+
+A successful response contains `"valid": true` and a non-null `"sid"`. Use the Pi-hole host root URL in `PIHOLE_URL` (no `/admin` suffix).
 
 ### Updating
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import Any
 from urllib.parse import quote
 
@@ -10,6 +11,10 @@ from sync.logger import get_logger
 log = get_logger("pihole")
 
 
+class PiholeAuthError(RuntimeError):
+    """Raised when Pi-hole rejects the provided password or app password."""
+
+
 class PiholeClient:
     """Client for the Pi-hole v6 REST API."""
 
@@ -17,25 +22,53 @@ class PiholeClient:
         self._client = httpx.Client(
             base_url=base_url.rstrip("/"),
             timeout=30.0,
+            verify=False,
         )
-        self._sid = self._authenticate(password)
+        self._sid, self._csrf = self._authenticate(password)
 
     def close(self) -> None:
+        if self._sid:
+            with suppress(httpx.HTTPError):
+                self._client.delete("/api/auth", headers=self._headers())
         self._client.close()
 
-    def _authenticate(self, password: str) -> str:
+    def _authenticate(self, password: str) -> tuple[str, str | None]:
         resp = self._client.post("/api/auth", json={"password": password})
-        resp.raise_for_status()
-        data: dict[str, Any] = resp.json()
+
+        try:
+            data: dict[str, Any] = resp.json()
+        except ValueError as exc:
+            raise PiholeAuthError(
+                f"Pi-hole authentication failed: invalid JSON response (HTTP {resp.status_code})"
+            ) from exc
+
         session = data.get("session", {})
-        sid: str = session.get("sid", "")
-        if not sid:
-            raise RuntimeError("Pi-hole authentication failed: no SID returned")
+        if resp.status_code == 401:
+            message = session.get("message") or data.get("error", {}).get("message", "Unauthorized")
+            raise PiholeAuthError(f"Pi-hole authentication failed: {message}")
+
+        if resp.status_code == 429:
+            message = data.get("error", {}).get("message", "Rate limit exceeded")
+            raise PiholeAuthError(f"Pi-hole authentication failed: {message}")
+
+        if not resp.is_success:
+            message = data.get("error", {}).get("message", f"HTTP {resp.status_code}")
+            raise PiholeAuthError(f"Pi-hole authentication failed: {message}")
+
+        sid = session.get("sid")
+        if not session.get("valid") or not sid or session.get("validity", 0) <= 0:
+            message = session.get("message", "no SID returned")
+            raise PiholeAuthError(f"Pi-hole authentication failed: {message}")
+
+        csrf: str | None = session.get("csrf")
         log.info("Authenticated with Pi-hole")
-        return sid
+        return str(sid), csrf
 
     def _headers(self) -> dict[str, str]:
-        return {"sid": self._sid}
+        headers = {"X-FTL-SID": self._sid}
+        if self._csrf:
+            headers["X-FTL-CSRF"] = self._csrf
+        return headers
 
     def list_records(self) -> list[tuple[str, str]]:
         """Return all custom DNS A records as ``(domain, ip)`` tuples."""
