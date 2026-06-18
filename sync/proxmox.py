@@ -28,16 +28,37 @@ class ProxmoxClient:
 
     def _get(self, path: str, **params: str) -> list[dict[str, object]]:
         resp = self._client.get(f"/api2/json{path}", params=params)
-        resp.raise_for_status()
+        if not resp.is_success:
+            detail = self._error_detail(resp)
+            raise httpx.HTTPStatusError(
+                detail,
+                request=resp.request,
+                response=resp,
+            )
         data: list[dict[str, object]] = resp.json()["data"]
         return data
 
+    @staticmethod
+    def _error_detail(resp: httpx.Response) -> str:
+        try:
+            body = resp.json()
+            errors = body.get("errors")
+            if errors:
+                return f"{resp.status_code} {resp.reason_phrase}: {errors}"
+        except ValueError:
+            pass
+        return f"{resp.status_code} {resp.reason_phrase} for {resp.request.url}"
+
     def discover(self) -> list[DiscoveredContainer]:
         """List all running LXC containers that have tags and a resolvable IP."""
-        resources = self._get("/cluster/resources", type="lxc")
+        # Proxmox accepts type=vm here (not type=lxc); filter response items by type.
+        resources = self._get("/cluster/resources", type="vm")
         containers: list[DiscoveredContainer] = []
 
         for res in resources:
+            if str(res.get("type", "")) != "lxc":
+                continue
+
             status = str(res.get("status", ""))
             if status != "running":
                 continue
