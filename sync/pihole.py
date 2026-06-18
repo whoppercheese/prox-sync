@@ -24,13 +24,64 @@ class PiholeClient:
             timeout=30.0,
             verify=False,
         )
-        self._sid, self._csrf = self._authenticate(password)
+        self._sid: str | None = None
+        self._csrf: str | None = None
+
+        if password:
+            try:
+                self._sid, self._csrf = self._authenticate(password)
+            except PiholeAuthError as exc:
+                if self._is_passwordless_pihole():
+                    log.warning(
+                        "Pi-hole app/web password auth failed but the instance has no "
+                        "web password set; continuing without authentication"
+                    )
+                else:
+                    raise PiholeAuthError(f"{exc}\n{self._auth_failure_hint()}") from exc
+        else:
+            log.info("Pi-hole password not set, using unauthenticated API")
 
     def close(self) -> None:
         if self._sid:
             with suppress(httpx.HTTPError):
                 self._client.delete("/api/auth", headers=self._headers())
         self._client.close()
+
+    def _fetch_api_config(self) -> dict[str, Any] | None:
+        try:
+            resp = self._client.get("/api/config/webserver/api")
+            if not resp.is_success:
+                return None
+            data: dict[str, Any] = resp.json()
+            api_cfg = data.get("config", {}).get("webserver", {}).get("api")
+            if isinstance(api_cfg, dict):
+                return api_cfg
+        except (httpx.HTTPError, ValueError):
+            return None
+        return None
+
+    def _is_passwordless_pihole(self) -> bool:
+        """Return True when Pi-hole has no web interface password configured."""
+        api_cfg = self._fetch_api_config()
+        return api_cfg is not None and api_cfg.get("pwhash") == ""
+
+    def _auth_failure_hint(self) -> str:
+        hints = [
+            "Hints:",
+            "- App passwords only work when a web interface password is set in Pi-hole.",
+            "- If Pi-hole has no web password, leave PIHOLE_PASSWORD empty in .env.",
+            "- Regenerate the app password after setting the web password.",
+        ]
+        api_cfg = self._fetch_api_config()
+        if api_cfg is not None:
+            if api_cfg.get("pwhash") == "":
+                hints.append("- Detected: web password is NOT set (pwhash is empty).")
+            if not api_cfg.get("app_sudo"):
+                hints.append(
+                    "- Detected: app_sudo is disabled. Enable with: "
+                    "sudo pihole-FTL --config webserver.api.app_sudo true"
+                )
+        return "\n".join(hints)
 
     def _authenticate(self, password: str) -> tuple[str, str | None]:
         resp = self._client.post("/api/auth", json={"password": password})
@@ -65,6 +116,8 @@ class PiholeClient:
         return str(sid), csrf
 
     def _headers(self) -> dict[str, str]:
+        if not self._sid:
+            return {}
         headers = {"X-FTL-SID": self._sid}
         if self._csrf:
             headers["X-FTL-CSRF"] = self._csrf

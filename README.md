@@ -135,8 +135,14 @@ Done. From now on, tag your LXC containers in Proxmox and everything else happen
 
 ### Pi-hole setup (`DNS_MODE=managed`)
 
-1. Set a **web interface password** in Pi-hole (Settings > Web interface). App passwords only work if a web password exists.
-2. Generate an **app password** in Settings > API > App password (recommended for scripts).
+**Option A — no web password (simplest homelab setup)**
+
+If your Pi-hole has no web interface password, leave `PIHOLE_PASSWORD` empty in `.env`. The API works without authentication.
+
+**Option B — app password (recommended for secured Pi-hole)**
+
+1. Set a **web interface password** in Pi-hole (Settings > Web interface). App passwords do **not** work without one.
+2. Generate an **app password** in Settings > API > App password.
 3. Enable write access for app-password sessions:
 
 ```bash
@@ -151,7 +157,7 @@ curl -s -X POST "http://YOUR_PIHOLE/api/auth" \
   -d '{"password":"YOUR_APP_PASSWORD"}' | jq
 ```
 
-A successful response contains `"valid": true` and a non-null `"sid"`. Use the Pi-hole host root URL in `PIHOLE_URL` (no `/admin` suffix).
+A successful response contains `"valid": true`, a non-null `"sid"`, and `"validity" > 0`. Use the Pi-hole host root URL in `PIHOLE_URL` (no `/admin` suffix).
 
 ### Updating
 
