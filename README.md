@@ -187,10 +187,10 @@ journalctl -u proxmox-sync.service -f
 
 Only resources created by prox-sync are modified or deleted:
 
-- **NPM**: proxy hosts with `# prox-sync:managed` in their advanced config
-- **Pi-hole**: records matching `*.<DOMAIN>` pointing to `NPM_IP`
+- **NPM**: only proxy hosts with `# prox-sync:managed` in their advanced config are updated or deleted
+- **Pi-hole**: DNS records are deleted only for hostnames that were removed from NPM in the same sync run. Manual NPM and Pi-hole entries are never touched.
 
-Manually created hosts and records are never touched.
+Manually created NPM proxy hosts and Pi-hole DNS records are never deleted by prox-sync.
 
 ## Conflict detection
 

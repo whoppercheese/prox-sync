@@ -199,3 +199,58 @@ class TestSync:
         result = sync(settings)
         assert result.dns_created == 1
         mock_pihole.create_record.assert_called_once_with("jellyfin.example.com", "192.168.1.1")
+
+    @patch("sync.engine.PiholeClient")
+    @patch("sync.engine.NpmClient")
+    @patch("sync.engine.ProxmoxClient")
+    def test_managed_dns_deletes_only_after_npm_delete(
+        self,
+        mock_pve_cls: MagicMock,
+        mock_npm_cls: MagicMock,
+        mock_pihole_cls: MagicMock,
+    ) -> None:
+        mock_pve = mock_pve_cls.return_value
+        mock_pve.discover.return_value = [
+            DiscoveredContainer(
+                vmid=100,
+                name="media",
+                node="pve",
+                ip="10.0.0.1",
+                tags="jellyfin+8096",
+            ),
+        ]
+
+        mock_npm = mock_npm_cls.return_value
+        mock_npm.list_hosts.return_value = [
+            {
+                "id": 1,
+                "domain_names": ["jellyfin.example.com"],
+                "forward_host": "10.0.0.1",
+                "forward_port": 8096,
+                "advanced_config": MANAGED_MARKER,
+            },
+            {
+                "id": 2,
+                "domain_names": ["sonarr.example.com"],
+                "forward_host": "10.0.0.1",
+                "forward_port": 8989,
+                "advanced_config": MANAGED_MARKER,
+            },
+        ]
+
+        mock_pihole = mock_pihole_cls.return_value
+        mock_pihole.list_records.return_value = [
+            ("jellyfin.example.com", "192.168.1.1"),
+            ("sonarr.example.com", "192.168.1.1"),
+            ("manual.example.com", "192.168.1.1"),
+        ]
+
+        settings = _make_settings(
+            DNS_MODE="managed",
+            PIHOLE_URL="http://pihole",
+            PIHOLE_PASSWORD="pass",
+        )
+        result = sync(settings)
+        assert result.npm_deleted == 1
+        mock_npm.delete_host.assert_called_once_with(2)
+        mock_pihole.delete_record.assert_called_once_with("sonarr.example.com", "192.168.1.1")

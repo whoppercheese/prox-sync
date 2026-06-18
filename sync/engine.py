@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sync.diff import compute_dns_diff, compute_npm_diff
+from sync.diff import compute_dns_creates, compute_dns_deletes, compute_npm_diff
 
 if TYPE_CHECKING:
     from sync.config import Settings
@@ -68,10 +68,20 @@ def _run(
     npm_actions = compute_npm_diff(services, actual_hosts)
 
     # 4. Compute DNS diff (only in managed mode)
-    dns_actions = []
+    dns_create_actions: list = []
+    dns_delete_actions: list = []
+    actual_records: list[tuple[str, str]] = []
     if pihole is not None:
         actual_records = pihole.list_records()
-        dns_actions = compute_dns_diff(services, actual_records, settings.NPM_IP, settings.DOMAIN)
+        dns_create_actions = compute_dns_creates(
+            services, actual_records, settings.NPM_IP, settings.DOMAIN
+        )
+        planned_npm_deletes = {
+            action.hostname for action in npm_actions if action.action == DiffAction.DELETE
+        }
+        dns_delete_actions = compute_dns_deletes(planned_npm_deletes, actual_records)
+
+    dns_actions = dns_create_actions + dns_delete_actions
 
     # 5. Log summary
     total = len(npm_actions) + len(dns_actions)
@@ -98,6 +108,7 @@ def _run(
 
     # 7. Apply NPM changes
     npm_created = npm_updated = npm_deleted = 0
+    deleted_npm_hostnames: set[str] = set()
     for action in npm_actions:
         if action.action == DiffAction.CREATE:
             assert action.forward_host is not None
@@ -124,18 +135,20 @@ def _run(
         elif action.action == DiffAction.DELETE:
             assert action.npm_host_id is not None
             npm.delete_host(action.npm_host_id)
+            deleted_npm_hostnames.add(action.hostname)
             npm_deleted += 1
 
-    # 8. Apply DNS changes
+    # 8. Apply DNS changes (deletes only for NPM hosts removed above)
     dns_created = dns_deleted = 0
     if pihole is not None:
-        for action in dns_actions:
-            if action.action == DiffAction.CREATE:
-                pihole.create_record(action.domain, action.ip)
-                dns_created += 1
-            elif action.action == DiffAction.DELETE:
-                pihole.delete_record(action.domain, action.ip)
-                dns_deleted += 1
+        for action in dns_create_actions:
+            pihole.create_record(action.domain, action.ip)
+            dns_created += 1
+
+        dns_delete_actions = compute_dns_deletes(deleted_npm_hostnames, actual_records)
+        for action in dns_delete_actions:
+            pihole.delete_record(action.domain, action.ip)
+            dns_deleted += 1
 
     result = SyncResult(
         npm_created=npm_created,

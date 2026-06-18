@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sync.diff import compute_dns_diff, compute_npm_diff
+from sync.diff import compute_dns_creates, compute_dns_deletes, compute_npm_diff
 from sync.models import DiffAction, Service
 from sync.npm import MANAGED_MARKER
 
@@ -93,30 +93,35 @@ class TestComputeNpmDiff:
         }
 
 
-class TestComputeDnsDiff:
+class TestComputeDnsCreates:
     def test_create_record(self) -> None:
         desired = [_svc("jellyfin", 8096, "10.0.0.1")]
-        actions = compute_dns_diff(desired, [], "192.168.1.1", "example.com")
+        actions = compute_dns_creates(desired, [], "192.168.1.1", "example.com")
         assert len(actions) == 1
         assert actions[0].action == DiffAction.CREATE
         assert actions[0].domain == "jellyfin.example.com"
 
-    def test_delete_stale_record(self) -> None:
-        actual = [("jellyfin.example.com", "192.168.1.1")]
-        actions = compute_dns_diff([], actual, "192.168.1.1", "example.com")
-        assert len(actions) == 1
-        assert actions[0].action == DiffAction.DELETE
-
     def test_no_change(self) -> None:
         desired = [_svc("jellyfin", 8096, "10.0.0.1")]
         actual = [("jellyfin.example.com", "192.168.1.1")]
-        actions = compute_dns_diff(desired, actual, "192.168.1.1", "example.com")
+        actions = compute_dns_creates(desired, actual, "192.168.1.1", "example.com")
         assert actions == []
 
-    def test_ignores_unmanaged_records(self) -> None:
-        actual = [
-            ("other.different.com", "192.168.1.1"),
-            ("jellyfin.example.com", "10.0.0.99"),
-        ]
-        actions = compute_dns_diff([], actual, "192.168.1.1", "example.com")
+
+class TestComputeDnsDeletes:
+    def test_delete_after_npm_removal(self) -> None:
+        actual = [("jellyfin.example.com", "192.168.1.1")]
+        actions = compute_dns_deletes({"jellyfin.example.com"}, actual)
+        assert len(actions) == 1
+        assert actions[0].action == DiffAction.DELETE
+        assert actions[0].domain == "jellyfin.example.com"
+        assert actions[0].ip == "192.168.1.1"
+
+    def test_skips_when_no_dns_record(self) -> None:
+        actions = compute_dns_deletes({"jellyfin.example.com"}, [])
+        assert actions == []
+
+    def test_keeps_manual_dns_when_npm_not_deleted(self) -> None:
+        actual = [("manual.example.com", "192.168.1.1")]
+        actions = compute_dns_deletes(set(), actual)
         assert actions == []

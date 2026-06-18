@@ -136,12 +136,6 @@ class PiholeClient:
                 results.append((parts[1], parts[0]))
         return results
 
-    def list_managed_records(self, domain: str, npm_ip: str) -> list[tuple[str, str]]:
-        """Return only records matching ``*.<domain>`` pointing to ``npm_ip``."""
-        return [
-            (d, ip) for d, ip in self.list_records() if d.endswith(f".{domain}") and ip == npm_ip
-        ]
-
     def create_record(self, domain: str, ip: str) -> None:
         key = quote(f"{ip} {domain}", safe="")
         resp = self._client.put(f"/api/config/dns/hosts/{key}", headers=self._headers())

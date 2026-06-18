@@ -84,28 +84,38 @@ def compute_npm_diff(
     return actions
 
 
-def compute_dns_diff(
+def compute_dns_creates(
     desired: list[Service],
     actual_records: list[tuple[str, str]],
     npm_ip: str,
     domain: str,
 ) -> list[DnsRecordDiff]:
-    """Compare desired services against existing Pi-hole DNS records.
-
-    Only considers records matching ``*.<domain>`` that point to ``npm_ip``.
-    """
+    """Plan DNS record creates for desired services that are missing in Pi-hole."""
     desired_domains = {svc.hostname for svc in desired}
-
-    managed_actual = {d for d, ip in actual_records if d.endswith(f".{domain}") and ip == npm_ip}
+    existing_matching = {
+        d for d, ip in actual_records if d.endswith(f".{domain}") and ip == npm_ip
+    }
 
     actions: list[DnsRecordDiff] = []
-
-    for d in desired_domains - managed_actual:
+    for d in desired_domains - existing_matching:
         actions.append(DnsRecordDiff(action=DiffAction.CREATE, domain=d, ip=npm_ip))
         log.info("Plan CREATE DNS record %s → %s", d, npm_ip)
+    return actions
 
-    for d in managed_actual - desired_domains:
-        actions.append(DnsRecordDiff(action=DiffAction.DELETE, domain=d, ip=npm_ip))
-        log.info("Plan DELETE DNS record %s", d)
+
+def compute_dns_deletes(
+    deleted_npm_hostnames: set[str],
+    actual_records: list[tuple[str, str]],
+) -> list[DnsRecordDiff]:
+    """Plan DNS deletes only for hostnames removed from NPM in this sync run."""
+    records_by_domain = dict(actual_records)
+    actions: list[DnsRecordDiff] = []
+
+    for hostname in sorted(deleted_npm_hostnames):
+        ip = records_by_domain.get(hostname)
+        if ip is None:
+            continue
+        actions.append(DnsRecordDiff(action=DiffAction.DELETE, domain=hostname, ip=ip))
+        log.info("Plan DELETE DNS record %s → %s", hostname, ip)
 
     return actions
