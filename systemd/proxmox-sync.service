@@ -1,0 +1,15 @@
+[Unit]
+Description=Proxmox → Pi-hole → NPM Sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/prox-sync/.env
+ExecStart=/opt/prox-sync/.venv/bin/python -m sync.main
+WorkingDirectory=/opt/prox-sync
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
