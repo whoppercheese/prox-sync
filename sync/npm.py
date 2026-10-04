@@ -49,6 +49,7 @@ class NpmClient:
         forward_port: int,
         *,
         ssl: bool = False,
+        certificate_id: int = 0,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "domain_names": [hostname],
@@ -66,7 +67,7 @@ class NpmClient:
         if ssl:
             payload.update(
                 {
-                    "certificate_id": "new",
+                    "certificate_id": certificate_id if certificate_id else "new",
                     "ssl_forced": True,
                     "hsts_enabled": True,
                     "hsts_subdomains": False,
@@ -98,6 +99,7 @@ class NpmClient:
         forward_port: int,
         *,
         ssl: bool = False,
+        certificate_id: int = 0,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "domain_names": [hostname],
@@ -115,7 +117,7 @@ class NpmClient:
         if ssl:
             payload.update(
                 {
-                    "certificate_id": "new",
+                    "certificate_id": certificate_id if certificate_id else "new",
                     "ssl_forced": True,
                     "hsts_enabled": True,
                     "hsts_subdomains": False,

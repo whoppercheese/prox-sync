@@ -40,7 +40,14 @@ class Settings(BaseSettings):
 
     ENABLE_SSL: bool = Field(
         default=False,
-        description="Provision Let's Encrypt certificates and force HTTPS",
+        description="Enable HTTPS and force SSL for proxy hosts",
+    )
+    NPM_CERTIFICATE_ID: int = Field(
+        default=0,
+        description=(
+            "Existing NPM certificate ID to use for all proxy hosts. "
+            "0 requests a new Let's Encrypt certificate (requires ENABLE_SSL)"
+        ),
     )
     DRY_RUN: bool = Field(default=False, description="Log planned changes without applying them")
 

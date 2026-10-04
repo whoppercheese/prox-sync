@@ -77,6 +77,7 @@ class TestSync:
             forward_host="10.0.0.1",
             forward_port=8096,
             ssl=False,
+            certificate_id=0,
         )
 
     @patch("sync.engine.NpmClient")

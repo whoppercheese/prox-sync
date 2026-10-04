@@ -118,6 +118,7 @@ def _run(
                 forward_host=action.forward_host,
                 forward_port=action.forward_port,
                 ssl=settings.ENABLE_SSL,
+                certificate_id=settings.NPM_CERTIFICATE_ID,
             )
             npm_created += 1
         elif action.action == DiffAction.UPDATE:
@@ -130,6 +131,7 @@ def _run(
                 forward_host=action.forward_host,
                 forward_port=action.forward_port,
                 ssl=settings.ENABLE_SSL,
+                certificate_id=settings.NPM_CERTIFICATE_ID,
             )
             npm_updated += 1
         elif action.action == DiffAction.DELETE:

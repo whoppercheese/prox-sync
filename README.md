@@ -117,7 +117,8 @@ Fill in your values:
 | `NPM_PASSWORD` | NPM login password |
 | `PIHOLE_URL` | Pi-hole base URL (e.g. `http://192.168.178.10` or `https://pi.hole`) |
 | `PIHOLE_PASSWORD` | Web password or app password (see Pi-hole setup below) |
-| `ENABLE_SSL` | `true` to auto-provision Let's Encrypt |
+| `ENABLE_SSL` | `true` to enable HTTPS and force SSL |
+| `NPM_CERTIFICATE_ID` | Use an existing NPM certificate for all hosts (`0` = request a new Let's Encrypt cert) |
 | `DRY_RUN` | `true` to preview without applying |
 | `LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 
