@@ -25,6 +25,7 @@ def _make_settings(**overrides: object) -> Settings:
         "PIHOLE_URL": "",
         "PIHOLE_PASSWORD": "",
         "ENABLE_SSL": False,
+        "DETECT_SCHEME": False,
         "DRY_RUN": False,
         "LOG_LEVEL": "WARNING",
     }
@@ -76,9 +77,30 @@ class TestSync:
             hostname="jellyfin.example.com",
             forward_host="10.0.0.1",
             forward_port=8096,
+            forward_scheme="http",
             ssl=False,
             certificate_id=0,
         )
+
+    @patch("sync.engine.detect_scheme", return_value="https")
+    @patch("sync.engine.NpmClient")
+    @patch("sync.engine.ProxmoxClient")
+    def test_detected_scheme_is_used(
+        self,
+        mock_pve_cls: MagicMock,
+        mock_npm_cls: MagicMock,
+        mock_detect: MagicMock,
+    ) -> None:
+        mock_pve_cls.return_value.discover.return_value = [
+            DiscoveredContainer(vmid=102, name="pbs", node="pve", ip="10.0.0.2", tags="pbs+8007"),
+        ]
+        mock_npm = mock_npm_cls.return_value
+        mock_npm.list_hosts.return_value = []
+
+        result = sync(_make_settings(DETECT_SCHEME=True))
+        assert result.npm_created == 1
+        mock_detect.assert_called_once_with("10.0.0.2", 8007, timeout=3.0)
+        assert mock_npm.create_host.call_args.kwargs["forward_scheme"] == "https"
 
     @patch("sync.engine.NpmClient")
     @patch("sync.engine.ProxmoxClient")

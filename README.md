@@ -8,6 +8,7 @@ Proxmox is the single source of truth. Tag a container, and DNS + reverse proxy 
 
 1. **Discovery** — queries the Proxmox API for all running LXC containers with tags.
 2. **Parsing** — extracts valid `<service>+<port>` tags (e.g. `jellyfin+8096`).
+   Each backend is then probed with a TLS handshake: if it speaks TLS (e.g. PBS on `8007`, self-signed certs are fine) NPM forwards via `https`, otherwise via `http`. Unreachable backends keep their current scheme.
 3. **Diff** — compares desired state against the current NPM proxy hosts (and optionally Pi-hole DNS records).
 4. **Apply** — creates, updates or deletes resources to reach the desired state.
 
@@ -119,6 +120,8 @@ Fill in your values:
 | `PIHOLE_PASSWORD` | Web password or app password (see Pi-hole setup below) |
 | `ENABLE_SSL` | `true` to enable HTTPS and force SSL |
 | `NPM_CERTIFICATE_ID` | Use an existing NPM certificate for all hosts (`0` = request a new Let's Encrypt cert) |
+| `DETECT_SCHEME` | `true` (default) to probe each backend and forward via `https` if it speaks TLS; `false` always uses `http` |
+| `DETECT_SCHEME_TIMEOUT` | Seconds per backend for the probe (default `3`) |
 | `DRY_RUN` | `true` to preview without applying |
 | `LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from sync.logger import get_logger
 from sync.models import DiffAction, DnsRecordDiff, ProxyHostDiff, Service
@@ -13,6 +13,10 @@ def _host_domain(host: dict[str, Any]) -> str:
     """Extract the primary domain name from an NPM proxy host record."""
     names: list[str] = host.get("domain_names", [])
     return names[0] if names else ""
+
+
+def _host_scheme(host: dict[str, Any]) -> Literal["http", "https"]:
+    return "https" if host.get("forward_scheme") == "https" else "http"
 
 
 def _is_managed(host: dict[str, Any]) -> bool:
@@ -39,33 +43,47 @@ def compute_npm_diff(
     for hostname, svc in desired_by_hostname.items():
         existing = managed_by_hostname.pop(hostname, None)
         if existing is None:
+            scheme = svc.scheme or "http"
             actions.append(
                 ProxyHostDiff(
                     action=DiffAction.CREATE,
                     hostname=hostname,
                     forward_host=svc.container_ip,
                     forward_port=svc.port,
+                    forward_scheme=scheme,
                 )
             )
-            log.info("Plan CREATE proxy host %s → %s:%d", hostname, svc.container_ip, svc.port)
+            log.info(
+                "Plan CREATE proxy host %s → %s://%s:%d",
+                hostname,
+                scheme,
+                svc.container_ip,
+                svc.port,
+            )
         else:
             host_id = int(existing["id"])
+            current_scheme = _host_scheme(existing)
+            # Unknown probe result keeps the current scheme instead of flipping it
+            scheme = svc.scheme or current_scheme
             ip_changed = existing.get("forward_host") != svc.container_ip
             port_changed = existing.get("forward_port") != svc.port
-            if ip_changed or port_changed:
+            scheme_changed = scheme != current_scheme
+            if ip_changed or port_changed or scheme_changed:
                 actions.append(
                     ProxyHostDiff(
                         action=DiffAction.UPDATE,
                         hostname=hostname,
                         forward_host=svc.container_ip,
                         forward_port=svc.port,
+                        forward_scheme=scheme,
                         npm_host_id=host_id,
                     )
                 )
                 log.info(
-                    "Plan UPDATE proxy host %d (%s) → %s:%d",
+                    "Plan UPDATE proxy host %d (%s) → %s://%s:%d",
                     host_id,
                     hostname,
+                    scheme,
                     svc.container_ip,
                     svc.port,
                 )

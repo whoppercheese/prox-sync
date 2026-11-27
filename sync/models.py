@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Literal
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,8 @@ class Service:
     container_ip: str
     vmid: int
     hostname: str
+    # Backend scheme detected by probing; None = unknown (keep current / default http)
+    scheme: Literal["http", "https"] | None = None
 
 
 class DiffAction(Enum):
@@ -40,6 +43,7 @@ class ProxyHostDiff:
     hostname: str
     forward_host: str | None = None
     forward_port: int | None = None
+    forward_scheme: Literal["http", "https"] = "http"
     npm_host_id: int | None = None
 
 
