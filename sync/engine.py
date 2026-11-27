@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING
 
 from sync.diff import compute_dns_creates, compute_dns_deletes, compute_npm_diff
@@ -11,6 +12,7 @@ from sync.models import DiffAction, SyncResult
 from sync.npm import NpmClient
 from sync.parser import build_services
 from sync.pihole import PiholeClient
+from sync.probe import detect_scheme
 from sync.proxmox import ProxmoxClient
 
 log = get_logger("engine")
@@ -62,6 +64,18 @@ def _run(
 
     # 2. Parse + conflict check (raises ConflictError on duplicates)
     services = build_services(containers, settings.DOMAIN)
+
+    # 2b. Detect backend scheme (http/https) per service
+    if settings.DETECT_SCHEME:
+        services = [
+            dataclasses.replace(
+                svc,
+                scheme=detect_scheme(
+                    svc.container_ip, svc.port, timeout=settings.DETECT_SCHEME_TIMEOUT
+                ),
+            )
+            for svc in services
+        ]
 
     # 3. Compute NPM diff
     actual_hosts = npm.list_hosts()
@@ -117,6 +131,7 @@ def _run(
                 hostname=action.hostname,
                 forward_host=action.forward_host,
                 forward_port=action.forward_port,
+                forward_scheme=action.forward_scheme,
                 ssl=settings.ENABLE_SSL,
                 certificate_id=settings.NPM_CERTIFICATE_ID,
             )
@@ -130,6 +145,7 @@ def _run(
                 hostname=action.hostname,
                 forward_host=action.forward_host,
                 forward_port=action.forward_port,
+                forward_scheme=action.forward_scheme,
                 ssl=settings.ENABLE_SSL,
                 certificate_id=settings.NPM_CERTIFICATE_ID,
             )

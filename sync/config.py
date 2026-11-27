@@ -49,6 +49,16 @@ class Settings(BaseSettings):
             "0 requests a new Let's Encrypt certificate (requires ENABLE_SSL)"
         ),
     )
+    DETECT_SCHEME: bool = Field(
+        default=True,
+        description=(
+            "Probe each backend with a TLS handshake and forward via https if it "
+            "speaks TLS, otherwise http. Unreachable backends keep their current scheme"
+        ),
+    )
+    DETECT_SCHEME_TIMEOUT: float = Field(
+        default=3.0, description="Seconds to wait per backend when probing the scheme"
+    )
     DRY_RUN: bool = Field(default=False, description="Log planned changes without applying them")
 
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")

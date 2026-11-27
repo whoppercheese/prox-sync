@@ -48,12 +48,13 @@ class NpmClient:
         forward_host: str,
         forward_port: int,
         *,
+        forward_scheme: str = "http",
         ssl: bool = False,
         certificate_id: int = 0,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "domain_names": [hostname],
-            "forward_scheme": "http",
+            "forward_scheme": forward_scheme,
             "forward_host": forward_host,
             "forward_port": forward_port,
             "allow_websocket_upgrade": True,
@@ -88,7 +89,13 @@ class NpmClient:
         resp = self._client.post("/api/nginx/proxy-hosts", json=payload)
         resp.raise_for_status()
         result: dict[str, Any] = resp.json()
-        log.info("Created proxy host for %s → %s:%d", hostname, forward_host, forward_port)
+        log.info(
+            "Created proxy host for %s → %s://%s:%d",
+            hostname,
+            forward_scheme,
+            forward_host,
+            forward_port,
+        )
         return result
 
     def update_host(
@@ -98,12 +105,13 @@ class NpmClient:
         forward_host: str,
         forward_port: int,
         *,
+        forward_scheme: str = "http",
         ssl: bool = False,
         certificate_id: int = 0,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "domain_names": [hostname],
-            "forward_scheme": "http",
+            "forward_scheme": forward_scheme,
             "forward_host": forward_host,
             "forward_port": forward_port,
             "allow_websocket_upgrade": True,
@@ -139,9 +147,10 @@ class NpmClient:
         resp.raise_for_status()
         result: dict[str, Any] = resp.json()
         log.info(
-            "Updated proxy host %d for %s → %s:%d",
+            "Updated proxy host %d for %s → %s://%s:%d",
             host_id,
             hostname,
+            forward_scheme,
             forward_host,
             forward_port,
         )
